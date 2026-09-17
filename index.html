@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WasSMM • Painel</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#080c14;color:#e8edf7;font-family:Arial,sans-serif}
+header{padding:18px 16px;border-bottom:1px solid #1b2433;background:#0d1320;position:sticky;top:0}
+.logo{font-size:21px;font-weight:800}.sub{color:#8290a8;font-size:12px;margin-top:4px}
+main{max-width:900px;margin:auto;padding:18px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.card,.box{background:#0e1522;border:1px solid #202b3c;border-radius:12px;padding:16px;margin-bottom:14px}
+.card b{font-size:20px}.muted{color:#8c99ad;font-size:12px}.tabs{display:flex;gap:8px;overflow:auto;margin-bottom:14px}
+button,.tab{border:0;border-radius:9px;padding:11px 14px;background:#172235;color:#dce6f7;cursor:pointer}
+button.primary{background:#2563eb;color:white}.tab.active{background:#2563eb}
+input,select{width:100%;padding:12px;background:#080d16;border:1px solid #263247;color:#fff;border-radius:8px;margin:7px 0 12px}
+label{font-size:12px;color:#9ca9bd}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:10px;border-bottom:1px solid #202b3c;text-align:left}
+.status{padding:10px;border-radius:8px;background:#111c2c;color:#9fb0c8;margin-top:10px;white-space:pre-wrap}
+@media(max-width:650px){.grid,.row{grid-template-columns:1fr}main{padding:12px}}
+</style>
+</head>
+<body>
+<header><div class="logo">▮▮ WasSMM</div><div class="sub">Painel de gerenciamento</div></header>
+<main>
+<div class="tabs">
+ <button class="tab active" onclick="show('inicio',this)">Início</button>
+ <button class="tab" onclick="show('servicos',this)">Serviços</button>
+ <button class="tab" onclick="show('pedido',this)">Novo pedido</button>
+ <button class="tab" onclick="show('status',this)">Consultar pedido</button>
+</div>
+
+<section id="inicio">
+<div class="grid">
+ <div class="card"><div class="muted">Saldo</div><b id="saldo">—</b></div>
+ <div class="card"><div class="muted">Serviços</div><b id="qtd">—</b></div>
+ <div class="card"><div class="muted">API</div><b>Online</b></div>
+</div>
+<div class="box"><h3>Bem-vindo</h3><p class="muted">Use o menu para carregar serviços, criar pedidos e consultar pedidos.</p><button class="primary" onclick="carregar()">Atualizar dados</button><div id="msg" class="status"></div></div>
+</section>
+
+<section id="servicos" style="display:none">
+<div class="box"><h3>Serviços</h3><button class="primary" onclick="carregarServicos()">Carregar serviços</button>
+<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Preço</th><th>Min</th><th>Máx</th></tr></thead><tbody id="servicosBody"></tbody></table></div></div>
+</section>
+
+<section id="pedido" style="display:none">
+<div class="box"><h3>Novo pedido</h3>
+<label>Serviço</label><select id="service"></select>
+<label>Link</label><input id="link" placeholder="https://...">
+<div class="row"><div><label>Quantidade</label><input id="quantity" type="number" placeholder="100"></div>
+<div><label>Drip-feed / corridas (opcional)</label><input id="runs" type="number" placeholder="Ex.: 5"></div></div>
+<label>Intervalo em minutos (opcional)</label><input id="interval" type="number" placeholder="Ex.: 30">
+<button class="primary" onclick="criarPedido()">Enviar pedido</button><div id="pedidoMsg" class="status"></div>
+</div>
+</section>
+
+<section id="status" style="display:none">
+<div class="box"><h3>Status do pedido</h3><label>ID do pedido</label><input id="orderId" type="number" placeholder="23501">
+<button class="primary" onclick="consultar()">Consultar</button><div id="statusMsg" class="status"></div></div>
+</section>
+</main>
+<script>
+async function api(url,opts={}){const r=await fetch(url,opts);const j=await r.json();if(!r.ok)throw new Error(j.error||'Erro');return j}
+function show(id,el){document.querySelectorAll('main section').forEach(x=>x.style.display='none');document.getElementById(id).style.display='block';document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));el.classList.add('active')}
+async function carregar(){try{const [b,s]=await Promise.all([api('/api/balance'),api('/api/services')]);document.getElementById('saldo').textContent=b.balance??'—';document.getElementById('qtd').textContent=Array.isArray(s)?s.length:'—';document.getElementById('msg').textContent='Dados atualizados.';preencher(s)}catch(e){document.getElementById('msg').textContent=e.message}}
+async function carregarServicos(){try{const s=await api('/api/services');preencher(s)}catch(e){document.getElementById('servicosBody').innerHTML='<tr><td colspan="6">'+e.message+'</td></tr>'}}
+function preencher(s){const body=document.getElementById('servicosBody'),sel=document.getElementById('service');body.innerHTML='';sel.innerHTML='';(s||[]).forEach(x=>{body.innerHTML+=`<tr><td>${x.service}</td><td>${x.name}</td><td>${x.type||''}</td><td>${x.rate||''}</td><td>${x.min||''}</td><td>${x.max||''}</td></tr>`;sel.innerHTML+=`<option value="${x.service}">${x.service} — ${x.name}</option>`})}
+async function criarPedido(){const d={service:document.getElementById('service').value,link:document.getElementById('link').value,quantity:Number(document.getElementById('quantity').value),runs:document.getElementById('runs').value?Number(document.getElementById('runs').value):undefined,interval:document.getElementById('interval').value?Number(document.getElementById('interval').value):undefined};try{const r=await api('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});document.getElementById('pedidoMsg').textContent='Pedido criado: '+(r.order??JSON.stringify(r));}catch(e){document.getElementById('pedidoMsg').textContent=e.message}}
+async function consultar(){try{const r=await api('/api/order/'+document.getElementById('orderId').value);document.getElementById('statusMsg').textContent=JSON.stringify(r,null,2)}catch(e){document.getElementById('statusMsg').textContent=e.message}}
+carregar();
+</script>
+</body>
+</html>
